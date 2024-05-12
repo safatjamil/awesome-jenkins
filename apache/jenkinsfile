@@ -1,0 +1,47 @@
+pipeline {
+  agent any
+  environment {
+     GITHUB_USER = "safatjamil"
+     GITHUB_PAT = credentials('github_pat')
+     REPOSITORY_NAME = 'awesome-jenkins'
+     WORKING_DIRECTORY = 'apache'
+     DOCKER = credentials('docker_user')
+     DOCKER_REPOSITORY = 'shafatjamil/devops'
+     DOCKER_REPOSITORY_TAG = 'v1'
+     DOCKER_LOCAL_IMAGE_NAME = 'apache'
+     DOCKER_LOCAL_IMAGE_TAG = 'v1'
+     DOCKER_LOCAL_CONTAINER_NAME = 'apache-httpd'
+     DOCKER_HOST_PORT = 800
+     DOCKER_CONTAINER_PORT = 80
+  }
+  stages {
+    stage('GitHub Clone') {
+      steps {
+        script {
+        sh '''
+           echo "Clone the GitHub repository"
+           git clone https://oauth2:$GITHUB_PAT@github.com/$GITHUB_USER/$REPOSITORY_NAME.git
+        '''
+        }
+      }
+    }
+    stage('Docker Build') {
+      steps {
+        dir('$REPOSITORY_NAME/$WORKING_DIRECTORY'){
+        sh ''' 
+           echo "Build the Docker image and run the container"
+           version=$(cat version.info)
+           docker build -t $DOCKER_LOCAL_IMAGE_NAME:$version .
+           docker run -d --name $DOCKER_LOCAL_CONTAINER_NAME -p $DOCKER_HOST_PORT:$DOCKER_CONTAINER_PORT \
+           -t $DOCKER_LOCAL_IMAGE_NAME:$version
+        '''
+        }
+      }
+    }
+  }
+  post { 
+    always { 
+      deleteDir()
+    }
+  }
+}
