@@ -7,12 +7,14 @@ pipeline {
      WORKING_DIRECTORY = 'apache'
      DOCKER = credentials('docker_user')
      DOCKER_REPOSITORY = 'shafatjamil/devops'
-     DOCKER_REPOSITORY_TAG = 'v1'
+     DOCKER_REPOSITORY_TAG = 'apache-v1'
      DOCKER_LOCAL_IMAGE_NAME = 'apache'
      DOCKER_LOCAL_IMAGE_TAG = 'v1'
      DOCKER_LOCAL_CONTAINER_NAME = 'apache-httpd'
+     DOCKER_HOST_IP_OR_DOMAIN = 'localhost'
      DOCKER_HOST_PORT = 800
      DOCKER_CONTAINER_PORT = 80
+     HTTP_TEST_SUCCESS_CODE = 200
   }
   stages {
     stage('GitHub Clone') {
@@ -27,20 +29,44 @@ pipeline {
     }
     stage('Docker Build') {
       steps {
-        dir('$REPOSITORY_NAME/$WORKING_DIRECTORY'){
+        dir("$REPOSITORY_NAME/$WORKING_DIRECTORY"){
         sh ''' 
            echo "Build the Docker image and run the container"
            version=$(cat version.info)
-           docker build -t $DOCKER_LOCAL_IMAGE_NAME:$version .
+           docker build -t $DOCKER_LOCAL_IMAGE_NAME:$DOCKER_LOCAL_IMAGE_TAG .
            docker run -d --name $DOCKER_LOCAL_CONTAINER_NAME -p $DOCKER_HOST_PORT:$DOCKER_CONTAINER_PORT \
-           -t $DOCKER_LOCAL_IMAGE_NAME:$version
+                      -t $DOCKER_LOCAL_IMAGE_NAME:$DOCKER_LOCAL_IMAGE_TAG
         '''
         }
       }
     }
+    stage('Test and Push') {
+      steps{
+        dir("$REPOSITORY_NAME/$WORKING_DIRECTORY") {
+          sh '''
+             echo "Test the container"
+             HTTP_CODE=$(curl --write-out "%{http_code}" --silent --output /dev/null http://$DOCKER_HOST_IP_OR_DOMAIN:800)
+             if [ $HTTP_CODE -eq $HTTP_TEST_SUCCESS_CODE ]
+             then
+                 docker tag $DOCKER_LOCAL_IMAGE_NAME:$DOCKER_LOCAL_IMAGE_TAG \
+                            $DOCKER_REPOSITORY:$DOCKER_REPOSITORY_TAG
+                 docker login -u $DOCKER_USR -p $DOCKER_PSW
+                 docker push $DOCKER_REPOSITORY:$DOCKER_REPOSITORY_TAG
+             fi
+             '''
+          }
+        }
+     }
   }
   post { 
     always { 
+       dir("$REPOSITORY_NAME/$WORKING_DIRECTORY") {
+         sh '''
+           echo "Clean up"
+           docker container rm --force $DOCKER_LOCAL_CONTAINER_NAME
+           docker image rm $DOCKER_LOCAL_IMAGE_NAME:$DOCKER_LOCAL_IMAGE_TAG
+         '''
+       }
       deleteDir()
     }
   }
