@@ -32,7 +32,6 @@ pipeline {
         dir("$REPOSITORY_NAME/$WORKING_DIRECTORY"){
         sh ''' 
            echo "Build the Docker image and run the container"
-           version=$(cat version.info)
            docker build -t $DOCKER_LOCAL_IMAGE_NAME:$DOCKER_LOCAL_IMAGE_TAG .
            docker run -d --name $DOCKER_LOCAL_CONTAINER_NAME -p $DOCKER_HOST_PORT:$DOCKER_CONTAINER_PORT \
                       -t $DOCKER_LOCAL_IMAGE_NAME:$DOCKER_LOCAL_IMAGE_TAG
